@@ -5,6 +5,7 @@
 """
 import json, re, random, sys
 from pathlib import Path
+import jieba
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -12,7 +13,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
 DATA = Path("/home/osboxes/Desktop/data-annotation/stu/student-01.json")
-OUT  = Path("/home/osboxes/Desktop/data-annotation/stu/student-01_labeled.json")
+OUT  = Path("/home/osboxes/Desktop/data-annotation/stu/student-01_labeled_a2.json")
 SEED = 42
 np.random.seed(SEED)
 random.seed(SEED)
@@ -39,13 +40,18 @@ def clean(text):
     text = re.sub(r'[^\u4e00-\u9fff\w]', '', text)
     return text
 
+def segment(text):
+    """jieba 分词 + 空格连接"""
+    return ' '.join(jieba.cut(text))
+
 def build_text(item):
-    """合并 title + content + answer dialogs 成一条文本"""
+    """合并 title + content + answer dialogs → 分词后文本"""
     parts = [item.get('question_title', ''), item.get('question_content', '')]
     for ans in item.get('answers', []):
         for d in ans.get('dialogs', []):
             parts.append(d.get('content', ''))
-    return clean(' '.join(parts))
+    raw = clean(' '.join(parts))
+    return segment(raw)
 
 texts = [build_text(item) for item in raw]
 
@@ -203,8 +209,9 @@ print("Step 4: 特征工程 — Char n-gram TF-IDF")
 print("=" * 60)
 
 vectorizer = TfidfVectorizer(
-    analyzer='char',
-    ngram_range=(2, 5),
+    analyzer='word',
+    token_pattern=r'(?u)\b\w+\b',
+    ngram_range=(1, 3),
     max_features=10000,
     min_df=3,
     max_df=0.8,
