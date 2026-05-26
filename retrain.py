@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""解析人工审核 + retrain (全量+加权) + 输出"""
-import json, re
+"""
+解析人工/LLM审核结果 + 加权重训
+用法: python3 retrain.py --data data/student-01.json --corrections data/student-01_corrections.json --output data/student-01_refined.json
+"""
+import json, re, argparse
 from pathlib import Path
 import jieba
 import numpy as np
@@ -9,47 +12,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
-DATA = Path("/home/osboxes/Desktop/data-annotation/data/student-01.json")
-REVIEW = Path("/home/osboxes/Desktop/data-annotation/data/review_500_out.csv")
-OUT = Path("/home/osboxes/Desktop/data-annotation/data/student-01_labeled_a3.json")
 SEED = 42
-np.random.seed(SEED)
 
-# 1) 解析人工标注
-corrected = {}
-with open(REVIEW) as f:
-    for line in f:
-        m = re.match(r'^(\d+)\s*[→➡]\s*([\d.]+)', line)
-        if not m:
-            continue
-        idx = int(m.group(1))
-        fl = m.group(2)
-        override = fl
-        for p in [r'标([\d.]+)', r'改([\d.]+)', r'更像([\d.]+)']:
-            cm = re.search(p, line)
-            if cm:
-                override = cm.group(1)
-        corrected[idx] = override
-print(f"人工标注: {len(corrected)} 条")
-
-# 2) 加载
-with open(DATA) as f:
-    raw = json.load(f)
-
-def cln(t):
-    return re.sub(r'\s+', '', re.sub(r'[^\u4e00-\u9fff\w]', '', t))
-
-def bld(item):
-    parts = [item.get('question_title',''), item.get('question_content','')]
-    for a in item.get('answers',[]):
-        for d in a.get('dialogs',[]):
-            parts.append(d.get('content',''))
-    return ' '.join(jieba.cut(cln(' '.join(parts))))
-
-texts = [bld(item) for item in raw]
-
-# 3) 启发式标签
-S = {
+S_KW = {
     '3.1':['正在自杀','跳楼','上吊','割腕','服药','在自杀'],
     '3.2':['想自杀','自杀计划','准备死','安排后事','写遗书','计划自杀'],
     '3.3':['自残','划手','割手','烫自己','伤害身体','自伤'],
@@ -83,64 +48,118 @@ S = {
     '1.17':['难受','难过','不开心','郁闷','烦','无聊','没意思'],
 }
 
+ALL_KW = {**S_KW}  # 按定义顺序
+
+
 def heur(t):
-    for lbl, kws in S.items():
+    for lbl, kws in ALL_KW.items():
         if any(kw in t for kw in kws):
             return lbl
     return '1.17'
 
-labels = []
-for i, item in enumerate(raw):
-    if i in corrected:
-        labels.append(corrected[i])
+
+def cln(t):
+    return re.sub(r'\s+', '', re.sub(r'[^\u4e00-\u9fff\w]', '', t))
+
+
+def bld(item):
+    parts = [item.get('question_title',''), item.get('question_content','')]
+    for a in item.get('answers',[]):
+        for d in a.get('dialogs',[]):
+            parts.append(d.get('content',''))
+    return ' '.join(jieba.cut(cln(' '.join(parts))))
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Retrain with corrected labels')
+    parser.add_argument('--data', required=True, help='原始 student JSON')
+    parser.add_argument('--corrections', help='修正文件 (JSON: [{"idx": N, "label": "X.Y"}])')
+    parser.add_argument('--output', help='输出文件路径')
+    parser.add_argument('--weight', type=float, default=10.0, help='修正样本权重')
+    parser.add_argument('--c', type=float, default=1.0, help='LR C 参数')
+    args = parser.parse_args()
+
+    np.random.seed(SEED)
+
+    DATA = Path(args.data)
+    if args.output:
+        OUT = Path(args.output)
     else:
-        labels.append(heur(cln(item.get('question_title','') + item.get('question_content',''))))
+        OUT = DATA.parent / f"{DATA.stem}_refined.json"
 
-n_human = sum(1 for i in range(len(raw)) if i in corrected)
-print(f"标签: {n_human} 人工 + {len(raw)-n_human} 启发式")
+    # 加载原始数据
+    with open(DATA) as f:
+        raw = json.load(f)
+    print(f"数据: {len(raw)} 条")
 
-# 4) 全量训练 + 人工加权
-vec = TfidfVectorizer(analyzer='word', token_pattern=r'(?u)\b\w+\b',
-                       ngram_range=(1,3), max_features=10000, min_df=3, max_df=0.8, sublinear_tf=True)
-X = vec.fit_transform(texts)
+    texts = [bld(item) for item in raw]
 
-# 样本权重: 人工 x10
-sw = np.ones(len(labels))
-for i in corrected:
-    sw[i] = 10.0
+    # 加载修正
+    corrected = {}
+    if args.corrections and Path(args.corrections).exists():
+        with open(args.corrections) as f:
+            correction_list = json.load(f)
+        for item in correction_list:
+            corrected[int(item['idx'])] = item['label']
+        print(f"修正: {len(corrected)} 条")
 
-X_tr, X_te, y_tr, y_te = train_test_split(X, labels, test_size=0.2, random_state=SEED, stratify=labels)
-sw_tr, sw_te = train_test_split(sw, test_size=0.2, random_state=SEED, stratify=labels)
+    # 生成标签: 修正优先, 否则启发式
+    labels = []
+    for i, item in enumerate(raw):
+        if i in corrected:
+            labels.append(corrected[i])
+        else:
+            labels.append(heur(cln(item.get('question_title','') + item.get('question_content',''))))
 
-clf = LogisticRegression(max_iter=1000, C=1.0, random_state=SEED)
-clf.fit(X_tr, y_tr, sample_weight=sw_tr)
-y_pred = clf.predict(X_te)
-acc = accuracy_score(y_te, y_pred)
-print(f"\n准确率 (测试集 {len(y_te)}条): {acc:.4f} ({len(set(labels))} classes)")
+    n_human = len(corrected)
+    print(f"标签: {n_human} 修正 + {len(raw)-n_human} 启发式")
 
-# 人工标注子集评估
-tr_idx, te_idx = train_test_split(list(range(len(raw))), test_size=0.2, random_state=SEED, stratify=labels)
-corrected_in_test = [i for i in te_idx if i in corrected]
-if corrected_in_test:
-    h_pred = clf.predict(vec.transform([texts[i] for i in corrected_in_test]))
-    h_true = [labels[i] for i in corrected_in_test]
-    h_acc = accuracy_score(h_true, h_pred)
-    print(f"准确率 (人工标注测试集 {len(corrected_in_test)}条): {h_acc:.4f}")
+    # TF-IDF
+    vec = TfidfVectorizer(analyzer='word', token_pattern=r'(?u)\b\w+\b',
+                          ngram_range=(1,3), max_features=10000,
+                          min_df=3, max_df=0.8, sublinear_tf=True)
+    X = vec.fit_transform(texts)
 
-# 5) 全量预测
-all_pred = clf.predict(X)
-for i, item in enumerate(raw):
-    item['labels'] = {'label': all_pred[i]}
+    # 样本权重
+    sw = np.ones(len(labels))
+    for i in corrected:
+        sw[i] = args.weight
 
-with open(OUT, 'w', encoding='utf-8') as f:
-    json.dump(raw, f, ensure_ascii=False, indent=2)
+    # 训练
+    X_tr, X_te, y_tr, y_te = train_test_split(X, labels, test_size=0.2, random_state=SEED, stratify=labels)
+    sw_tr, sw_te = train_test_split(sw, test_size=0.2, random_state=SEED, stratify=labels)
 
-from collections import Counter
-dist = Counter(all_pred)
-s1 = sum(c for l,c in dist.items() if l.startswith('1.'))
-s2 = sum(c for l,c in dist.items() if l.startswith('2.'))
-s3 = sum(c for l,c in dist.items() if l.startswith('3.'))
-print(f"\n层级: S1={s1} ({s1/len(raw)*100:.1f}%)  S2={s2} ({s2/len(raw)*100:.1f}%)  S3={s3} ({s3/len(raw)*100:.1f}%)")
-for k in sorted(dist):
-    print(f"  {k}: {dist[k]}")
-print(f"\n输出: {OUT} ({OUT.stat().st_size/1024/1024:.1f}MB)")
+    clf = LogisticRegression(max_iter=1000, C=args.c, random_state=SEED)
+    clf.fit(X_tr, y_tr, sample_weight=sw_tr)
+    y_pred = clf.predict(X_te)
+    acc = accuracy_score(y_te, y_pred)
+    print(f"准确率 (测试集 {len(y_te)}条): {acc:.4f} ({len(set(labels))} classes)")
+
+    # 修正子集评估
+    tr_idx, te_idx = train_test_split(list(range(len(raw))), test_size=0.2, random_state=SEED, stratify=labels)
+    corrected_in_test = [i for i in te_idx if i in corrected]
+    if corrected_in_test:
+        h_pred = clf.predict(vec.transform([texts[i] for i in corrected_in_test]))
+        h_true = [labels[i] for i in corrected_in_test]
+        h_acc = accuracy_score(h_true, h_pred)
+        print(f"准确率 (修正标注测试集 {len(corrected_in_test)}条): {h_acc:.4f}")
+
+    # 全量预测
+    all_pred = clf.predict(X)
+    for i, item in enumerate(raw):
+        item['labels'] = {'label': all_pred[i]}
+
+    with open(OUT, 'w', encoding='utf-8') as f:
+        json.dump(raw, f, ensure_ascii=False, indent=2)
+
+    from collections import Counter
+    dist = Counter(all_pred)
+    s1 = sum(c for l,c in dist.items() if l.startswith('1.'))
+    s2 = sum(c for l,c in dist.items() if l.startswith('2.'))
+    s3 = sum(c for l,c in dist.items() if l.startswith('3.'))
+    print(f"层级: S1={s1} ({s1/len(raw)*100:.1f}%)  S2={s2} ({s2/len(raw)*100:.1f}%)  S3={s3} ({s3/len(raw)*100:.1f}%)")
+    print(f"输出: {OUT} ({OUT.stat().st_size/1024/1024:.1f}MB)")
+
+
+if __name__ == '__main__':
+    main()

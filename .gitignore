@@ -1,3 +1,5 @@
 venv/
 __pycache__/
 *.pyc
+.~lock*
+data/classify_p2.py

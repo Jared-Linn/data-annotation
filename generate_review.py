@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
 """
-生成人工审核 CSV: 找出模型最不确定的样本供人工修正标签
+生成审核 CSV: 找出模型最不确定的样本供人工/LLM修正标签
+用法: python3 generate_review.py --data data/student-01.json --n 500
 """
-import json, csv, random, sys, re
+import json, csv, random, re, argparse
 from pathlib import Path
 import jieba
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 
-DATA = Path("/home/osboxes/Desktop/data-annotation/stu/student-01.json")
-REVIEW_CSV = Path("/home/osboxes/Desktop/data-annotation/stu/review_500.csv")
 SEED = 42
-np.random.seed(SEED)
-random.seed(SEED)
 
-# --- 关键词标签 (同 pipeline_a.py) ---
+# --- 关键词标签 ---
 S1_KW = {
     '1.1': ['学业','考研','听课','成绩','考试','毕业','就业','求职','面试','学习','读书','作业','挂科','补考','论文','答辩','考研失败','考不上','成绩下滑','专业','选课','课堂'],
     '1.2': ['工作','同事','老板','加班','绩效','辞职','职场','实习','转正','工资','薪水','升职','社团','班级','沟通','岗位'],
@@ -53,22 +50,19 @@ S3_KW = {
     '3.4': ['打人','杀人','伤人','持刀','攻击','暴力'],
     '3.5': ['报复','报仇','杀人计划','干掉','弄死'],
 }
+ALL_KW = {**S3_KW, **S2_KW, **S1_KW}
+
 
 def heuristic_label(text):
-    for label, kws in {**S3_KW, **S2_KW, **S1_KW}.items():
+    for label, kws in ALL_KW.items():
         if any(kw in text for kw in kws):
             return label
     return None
 
-# --- 加载 ---
-print("加载数据...")
-with open(DATA) as f:
-    raw = json.load(f)
 
 def clean(text):
-    text = re.sub(r'\s+', '', text)
-    text = re.sub(r'[^\u4e00-\u9fff\w]', '', text)
-    return text
+    return re.sub(r'\s+', '', re.sub(r'[^\u4e00-\u9fff\w]', '', text))
+
 
 def build_text(item):
     parts = [item.get('question_title',''), item.get('question_content','')]
@@ -77,77 +71,86 @@ def build_text(item):
             parts.append(d.get('content',''))
     return ' '.join(jieba.cut(clean(' '.join(parts))))
 
-texts = [build_text(item) for item in raw]
-labels = []
-for item in raw:
-    t = clean(item.get('question_title','') + item.get('question_content',''))
-    lbl = heuristic_label(t)
-    labels.append(lbl if lbl else '1.17')
 
-print(f"TF-IDF 向量化...")
-import re
-vectorizer = TfidfVectorizer(
-    analyzer='word', token_pattern=r'(?u)\b\w+\b',
-    ngram_range=(1,3), max_features=10000, min_df=3, max_df=0.8, sublinear_tf=True,
-)
-X = vectorizer.fit_transform(texts)
+def main():
+    parser = argparse.ArgumentParser(description='Generate review CSV with uncertain samples')
+    parser.add_argument('--data', required=True, help='原始 student JSON 路径')
+    parser.add_argument('--output', default=None, help='输出 CSV 路径')
+    parser.add_argument('--n', type=int, default=500, help='采样数量')
+    args = parser.parse_args()
 
-# 训练 LR + 概率
-print("训练 Logistic Regression + 概率预测...")
-clf = LogisticRegression(max_iter=1000, C=1.0, random_state=SEED)
-clf.fit(X, labels)
+    np.random.seed(SEED)
+    random.seed(SEED)
 
-probs = clf.predict_proba(X)
-max_probs = probs.max(axis=1)
-preds = clf.predict(X)
+    DATA = Path(args.data)
+    if args.output:
+        REVIEW_CSV = Path(args.output)
+    else:
+        REVIEW_CSV = DATA.parent / f"{DATA.stem}_review.csv"
 
-# --- 采样策略: 低置信度 + 各类均衡 ---
-N = 500
+    # 加载
+    print("加载数据...")
+    with open(DATA) as f:
+        raw = json.load(f)
 
-# 1) 最不确定的 300 条
-uncertain_idx = np.argsort(max_probs)[:300]
+    texts = [build_text(item) for item in raw]
+    labels = []
+    for item in raw:
+        t = clean(item.get('question_title','') + item.get('question_content',''))
+        lbl = heuristic_label(t)
+        labels.append(lbl if lbl else '1.17')
 
-# 2) 从每个类随机补到 N
-class_sample = {}
-for i, lbl in enumerate(labels):
-    if i in uncertain_idx:
-        continue
-    class_sample.setdefault(lbl, []).append(i)
+    print(f"TF-IDF 向量化...")
+    vectorizer = TfidfVectorizer(
+        analyzer='word', token_pattern=r'(?u)\b\w+\b',
+        ngram_range=(1,3), max_features=10000, min_df=3, max_df=0.8, sublinear_tf=True,
+    )
+    X = vectorizer.fit_transform(texts)
 
-extra = []
-for lbl, indices in class_sample.items():
-    take = min(len(indices), max(1, int(N * 0.7 / len(class_sample))))
-    extra.extend(random.sample(indices, take))
+    # 训练 + 概率
+    print("训练 Logistic Regression + 概率预测...")
+    clf = LogisticRegression(max_iter=1000, C=1.0, random_state=SEED)
+    clf.fit(X, labels)
+    probs = clf.predict_proba(X)
+    max_probs = probs.max(axis=1)
+    preds = clf.predict(X)
 
-all_idx = list(uncertain_idx) + extra[:200]
-all_idx = list(set(all_idx))
-random.shuffle(all_idx)
+    # 采样: 低置信度 + 各类均衡
+    N = args.n
+    uncertain_idx = np.argsort(max_probs)[:min(N*2, len(max_probs))]
 
-print(f"生成审核文件: {len(all_idx)} 条...")
-with open(REVIEW_CSV, 'w', newline='', encoding='utf-8') as f:
-    writer = csv.writer(f)
-    writer.writerow(['idx', 'question_id', 'heuristic_label', 'model_label',
-                     'confidence', 'correct_label', 'title', 'content_preview'])
-    for idx in all_idx:
-        item = raw[idx]
-        title = item['question_title'][:60]
-        content = item['question_content'][:80]
-        conf = max_probs[idx]
-        writer.writerow([
-            idx, item['question_id'], labels[idx], preds[idx],
-            f"{conf:.3f}", '', title, content
-        ])
+    class_sample = {}
+    for i, lbl in enumerate(labels):
+        if i in uncertain_idx:
+            continue
+        class_sample.setdefault(lbl, []).append(i)
 
-print(f"\n输出: {REVIEW_CSV}")
-print(f"条数: {len(all_idx)}")
-print(f"\n说明: 编辑 correct_label 列 → 保存 → 我 retrain")
-print(f"标签格式: 1.1 ~ 3.5, 留空=不改")
-print(f"\n置信度分布:")
-for p in [0.3, 0.5, 0.7, 0.9]:
-    cnt = int((max_probs < p).sum())
-    print(f"  < {p:.1f}: {cnt} 条")
+    extra = []
+    for lbl, indices in class_sample.items():
+        take = min(len(indices), max(1, int(N * 0.7 / max(1, len(class_sample)))))
+        extra.extend(random.sample(indices, take))
 
-print(f"\n类别分布 (源标签):")
-from collections import Counter
-for lbl, cnt in sorted(Counter(labels).most_common()):
-    print(f"  {lbl}: {cnt}")
+    all_idx = list(set(list(uncertain_idx) + extra))[:N]
+    random.shuffle(all_idx)
+
+    print(f"生成审核文件: {len(all_idx)} 条...")
+    with open(REVIEW_CSV, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['idx', 'question_id', 'heuristic_label', 'model_label',
+                         'confidence', 'correct_label', 'title', 'content_preview'])
+        for idx in all_idx:
+            item = raw[idx]
+            title = item['question_title'][:60]
+            content = item['question_content'][:80]
+            conf = max_probs[idx]
+            writer.writerow([
+                idx, item['question_id'], labels[idx], preds[idx],
+                f"{conf:.3f}", '', title, content
+            ])
+
+    print(f"\n输出: {REVIEW_CSV} ({len(all_idx)} 条)")
+    print(f"置信度分布: < 0.3: {int((max_probs < 0.3).sum())}  < 0.5: {int((max_probs < 0.5).sum())}")
+
+
+if __name__ == '__main__':
+    main()
