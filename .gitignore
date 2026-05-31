@@ -3,3 +3,17 @@ __pycache__/
 *.pyc
 .~lock*
 data/classify_p2.py
+
+# 模型文件（可重新生成）
+*.pkl
+
+# 临时文件
+*.tmp
+temp/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude
+.claude/
