@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>心理咨询对话 - 标签标注工具</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #f5f6fa; color: #333; }
+.header { background: #2c3e50; color: #fff; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.controls { display: flex; gap: 10px; align-items: center; }
+.controls label { cursor: pointer; background: #3498db; color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 14px; }
+.controls label:hover { background: #2980b9; }
+.controls input[type="file"] { display: none; }
+.btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.btn-primary { background: #27ae60; color: #fff; }
+.btn-primary:hover { background: #219a52; }
+.btn-primary:disabled { background: #95a5a6; cursor: not-allowed; }
+.btn-danger { background: #e74c3c; color: #fff; }
+.btn-danger:hover { background: #c0392b; }
+.stats-bar { background: #ecf0f1; padding: 10px 24px; display: flex; gap: 20px; font-size: 13px; flex-wrap: wrap; }
+.stats-bar .stat { display: flex; gap: 4px; }
+.stats-bar .stat .num { font-weight: 700; }
+.stats-bar .stat.s1 .num { color: #3498db; }
+.stats-bar .stat.s2 .num { color: #e67e22; }
+.stats-bar .stat.s3 .num { color: #e74c3c; }
+.search-bar { padding: 10px 24px; background: #fff; display: flex; gap: 10px; border-bottom: 1px solid #ddd; flex-wrap: wrap; }
+.search-bar input, .search-bar select { padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+.search-bar input { flex: 1; min-width: 200px; }
+.items { padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 40px; }
+.item { background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.1); border-left: 4px solid #3498db; transition: all .2s; }
+.item.s1 { border-left-color: #3498db; }
+.item.s2 { border-left-color: #e67e22; }
+.item.s3 { border-left-color: #e74c3c; }
+.item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px; }
+.item-id { font-size: 11px; color: #95a5a6; font-family: monospace; }
+.item-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; line-height: 1.4; }
+.item-content { font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 8px; max-height: 60px; overflow: hidden; cursor: pointer; }
+.item-content.expanded { max-height: none; }
+.item-dialogs { margin-top: 6px; padding: 8px; background: #f8f9fa; border-radius: 4px; font-size: 12px; color: #666; max-height: 80px; overflow: hidden; }
+.item-dialogs.expanded { max-height: none; cursor: pointer; }
+.item-dialogs:hover, .item-content:hover { background: #f0f1f3; }
+.label-edit { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.label-edit select { padding: 4px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; cursor: pointer; }
+.label-edit select.s1 { border-color: #3498db; }
+.label-edit select.s2 { border-color: #e67e22; }
+.label-edit select.s3 { border-color: #e74c3c; }
+.label-edit .old-label { font-size: 11px; color: #999; }
+.label-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; color: #fff; }
+.label-badge.s1 { background: #3498db; }
+.label-badge.s2 { background: #e67e22; }
+.label-badge.s3 { background: #e74c3c; }
+.toast { position: fixed; bottom: 20px; right: 20px; background: #2c3e50; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .3s; z-index: 999; }
+.toast.show { opacity: 1; }
+.toggle-all { font-size: 12px; color: #3498db; cursor: pointer; margin-left: 8px; }
+.empty { text-align: center; padding: 60px 20px; color: #999; }
+.empty p { margin-top: 10px; }
+@media (max-width: 600px) {
+  .header { flex-direction: column; gap: 10px; }
+  .controls { width: 100%; justify-content: center; }
+  .items { padding: 10px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📋 对话标签标注工具</h1>
+  <div class="controls">
+    <label>📂 上传 JSON<input type="file" id="fileInput" accept=".json"></label>
+    <button class="btn btn-primary" id="downloadBtn" disabled onclick="downloadJSON()">⬇ 下载</button>
+    <button class="btn btn-danger" id="resetBtn" onclick="resetFilters()">✕ 重置筛选</button>
+  </div>
+</div>
+
+<div class="search-bar" id="searchBar" style="display:none">
+  <input type="text" id="searchInput" placeholder="搜索标题或内容..." oninput="renderItems()">
+  <select id="sFilter" onchange="renderItems()">
+    <option value="">全部层级</option>
+    <option value="S1">S1 日常困扰</option>
+    <option value="S2">S2 中度障碍</option>
+    <option value="S3">S3 紧急危机</option>
+  </select>
+  <select id="confFilter" onchange="renderItems()">
+    <option value="">全部置信度</option>
+    <option value="0.1">&lt; 0.10 极低</option>
+    <option value="0.15">&lt; 0.15 低</option>
+    <option value="0.2">&lt; 0.20 中低</option>
+    <option value="0.3">&lt; 0.30 中等</option>
+  </select>
+  <select id="labelFilter" onchange="renderItems()">
+    <option value="">全部类目</option>
+  </select>
+  <span class="toggle-all" onclick="toggleAllDialogs()">展开全部对话</span>
+</div>
+
+<div class="stats-bar" id="statsBar" style="display:none"></div>
+
+<div class="items" id="items"><div class="empty"><h2>📤 上传 JSON 文件</h2><p>格式: 包含心理咨询对话的 JSON 数组，每项有 question_id, question_title, question_content, answers[].dialogs[]</p></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+let data = [];
+let modified = new Set();
+
+const TAXONOMY = {
+  '1.1':'学业烦恼','1.2':'校园职场','1.3':'家庭矛盾','1.4':'轻度消遣','1.5':'亲友离世',
+  '1.6':'短期失眠','1.7':'现实压力','1.8':'社交矛盾','1.9':'亲密关系','1.10':'离异后续',
+  '1.11':'分手情绪','1.12':'自我探索','1.13':'低自尊','1.14':'青春期','1.15':'性认知',
+  '1.16':'亲子日常','1.17':'其他',
+  '2.1':'抑郁','2.2':'焦虑','2.3':'双相','2.4':'PTSD','2.5':'恐慌','2.6':'饮食障碍',
+  '2.7':'强迫','2.8':'成瘾','2.9':'其他',
+  '3.1':'正在自杀','3.2':'自杀计划','3.3':'自残','3.4':'伤害他人','3.5':'报复'
+};
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      data = Array.isArray(parsed) ? parsed : parsed.data || [parsed];
+      modified = new Set();
+      afterLoad();
+      toast(`✅ 已加载 ${data.length} 条数据`);
+    } catch(err) {
+      toast('❌ JSON 解析失败: ' + err.message, true);
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+});
+
+function afterLoad() {
+  // 确保每项有 labels
+  data.forEach((item, i) => {
+    if (!item.labels) item.labels = { label: '' };
+    if (!item.labels.label) item.labels.label = '';
+    item._idx = i;
+  });
+  updateLabelFilter();
+  document.getElementById('downloadBtn').disabled = false;
+  document.getElementById('searchBar').style.display = 'flex';
+  document.getElementById('statsBar').style.display = 'flex';
+  renderItems();
+}
+
+function updateLabelFilter() {
+  const sel = document.getElementById('labelFilter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">全部类目</option>';
+  const codes = Object.keys(TAXONOMY).sort();
+  codes.forEach(code => {
+    const opt = document.createElement('option');
+    opt.value = code;
+    opt.textContent = code + ' ' + TAXONOMY[code];
+    sel.appendChild(opt);
+  });
+  sel.value = current;
+}
+
+function getSLabel(label) {
+  if (!label) return 'S1';
+  if (label.startsWith('3.')) return 'S3';
+  if (label.startsWith('2.')) return 'S2';
+  return 'S1';
+}
+
+function renderItems() {
+  const container = document.getElementById('items');
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const sFilter = document.getElementById('sFilter').value;
+  const labelFilter = document.getElementById('labelFilter').value;
+  const confFilter = document.getElementById('confFilter').value;
+  const allExpanded = window._allDialogsExpanded;
+
+  const filtered = data.filter(item => {
+    const title = (item.question_title || '').toLowerCase();
+    const content = (item.question_content || '').toLowerCase();
+    const label = item.labels.label || '';
+    const conf = item._confidence || 1;
+    if (search && !title.includes(search) && !content.includes(search)) return false;
+    if (sFilter && getSLabel(label) !== sFilter) return false;
+    if (labelFilter && label !== labelFilter) return false;
+    if (confFilter && conf >= parseFloat(confFilter)) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty"><h2>🔍 无匹配数据</h2><p>尝试修改筛选条件</p></div>';
+    updateStats();
+    return;
+  }
+
+  container.innerHTML = filtered.map(item => {
+    const label = item.labels.label || '';
+    const sl = getSLabel(label);
+    const title = item.question_title || '(无标题)';
+    const content = item.question_content || '';
+    const dialogs = [];
+    for (const ans of item.answers || []) {
+      for (const d of ans.dialogs || []) {
+        if (d.content) dialogs.push(d.content);
+      }
+    }
+    const dialogText = dialogs.join(' | ');
+    const labelName = TAXONOMY[label] || '';
+
+    const conf = item._confidence;
+    const top3 = item._top3 || [];
+    const confColor = conf < 0.1 ? '#e74c3c' : conf < 0.15 ? '#e67e22' : conf < 0.2 ? '#f39c12' : '#27ae60';
+    const confLabel = conf < 0.1 ? '极低' : conf < 0.15 ? '低' : conf < 0.2 ? '中低' : '中';
+
+    return `<div class="item ${sl}" data-idx="${item._idx}" style="${conf < 0.15 ? 'background:#fff5f5' : ''}">
+      <div class="item-header">
+        <span class="item-id">#${item.question_id || item._idx}</span>
+        <span style="display:flex;gap:6px;align-items:center">
+          ${conf ? `<span style="font-size:11px;color:${confColor};font-weight:600">${confLabel} ${(conf*100).toFixed(0)}%</span>` : ''}
+          <span class="label-badge ${sl}">${label || '待标'}</span>
+        </span>
+      </div>
+      ${top3.length ? `<div style="font-size:11px;color:#999;margin-bottom:4px">模型预测: ${top3.map(t => `${t.label}(${(t.prob*100).toFixed(0)}%)`).join(' → ')}</div>` : ''}
+      <div class="item-title">${escapeHtml(title)}</div>
+      <div class="item-content" onclick="this.classList.toggle('expanded')">${escapeHtml(content)}</div>
+      ${dialogText ? `<div class="item-dialogs ${allExpanded ? 'expanded' : ''}" onclick="this.classList.toggle('expanded')">💬 ${escapeHtml(dialogText)}</div>` : ''}
+      <div class="label-edit">
+        <select class="${sl}" data-idx="${item._idx}" onchange="onLabelChange(${item._idx}, this)">
+          <option value="">-- 选择标签 --</option>
+          ${Object.keys(TAXONOMY).sort().map(c =>
+            `<option value="${c}" ${label === c ? 'selected' : ''}>${c} ${TAXONOMY[c]}</option>`
+          ).join('')}
+        </select>
+        ${label && labelName ? `<span class="old-label">${label} ${labelName}</span>` : ''}
+        ${modified.has(item._idx) ? '<span style="color:#e74c3c;font-size:11px">✎ 已修改</span>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  updateStats();
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text || '';
+  return div.innerHTML;
+}
+
+function onLabelChange(idx, sel) {
+  const val = sel.value;
+  data[idx].labels.label = val;
+  if (val) {
+    modified.add(idx);
+  } else {
+    modified.delete(idx);
+  }
+  // 更新 badge
+  const itemDiv = sel.closest('.item');
+  const badge = itemDiv.querySelector('.label-badge');
+  const sl = getSLabel(val);
+  itemDiv.className = `item ${sl}`;
+  badge.textContent = val || '待标';
+  badge.className = `label-badge ${sl}`;
+  sel.className = sl;
+  sel.nextElementSibling.textContent = val + ' ' + (TAXONOMY[val] || '');
+  updateStats();
+  toast(`#${data[idx].question_id || idx} → ${val || '(清除)'}`);
+}
+
+function updateStats() {
+  const bar = document.getElementById('statsBar');
+  if (data.length === 0) { bar.style.display = 'none'; return; }
+  let total = data.length, labeled = 0, s1 = 0, s2 = 0, s3 = 0;
+  const dist = {};
+  data.forEach(item => {
+    const l = item.labels.label || '';
+    if (l) { labeled++; dist[l] = (dist[l]||0)+1; }
+    if (l.startsWith('3.')) s3++;
+    else if (l.startsWith('2.')) s2++;
+    else if (l) s1++;
+  });
+  const nClasses = Object.keys(dist).length;
+  const s3Classes = Object.keys(dist).filter(k => k.startsWith('3.')).length;
+
+  bar.innerHTML = `
+    <span class="stat">总: <span class="num">${total}</span></span>
+    <span class="stat">已标: <span class="num">${labeled}</span></span>
+    <span class="stat s1">S1: <span class="num">${s1}</span> (${total?(s1/total*100).toFixed(1):0}%)</span>
+    <span class="stat s2">S2: <span class="num">${s2}</span> (${total?(s2/total*100).toFixed(1):0}%)</span>
+    <span class="stat s3">S3: <span class="num">${s3}</span> (${total?(s3/total*100).toFixed(1):0}%)</span>
+    <span class="stat">类数: <span class="num">${nClasses}</span>/31</span>
+    <span class="stat">S3子类: <span class="num">${s3Classes}</span>/5</span>
+    <span class="stat" style="color:#e74c3c">修改: <span class="num">${modified.size}</span></span>
+  `;
+}
+
+function downloadJSON() {
+  const output = JSON.stringify(data, null, 2);
+  const blob = new Blob([output], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const name = document.getElementById('fileInput').files[0]?.name || 'data';
+  const base = name.replace('.json', '');
+  a.download = `${base}_已标注.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`⬇ 已下载 ${base}_已标注.json`);
+}
+
+function resetFilters() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('sFilter').value = '';
+  document.getElementById('labelFilter').value = '';
+  renderItems();
+}
+
+function toggleAllDialogs() {
+  window._allDialogsExpanded = !window._allDialogsExpanded;
+  document.querySelectorAll('.item-dialogs').forEach(el => {
+    el.classList.toggle('expanded', window._allDialogsExpanded);
+  });
+  document.querySelector('.toggle-all').textContent =
+    window._allDialogsExpanded ? '收起全部对话' : '展开全部对话';
+}
+
+let toastTimer;
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = isError ? '#e74c3c' : '#2c3e50';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// Drag & drop support
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.json')) {
+    document.getElementById('fileInput').files = e.dataTransfer.files;
+    document.getElementById('fileInput').dispatchEvent(new Event('change'));
+  }
+});
+</script>
+</body>
+</html>
