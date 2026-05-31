@@ -12,10 +12,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
 
 SEED = 42
-STOP_WORDS = set("""
-的 了 在 是 我 有 和 就 不 人 都 一 一个 上 也 很 到 说 要 去 你
-会 着 没有 看 好 自己 这 他 她 它 们 那 么 什么 怎么 因为 所以
-""".split())
+with open('data/stopwords.txt', encoding='utf-8') as f:
+    STOP_WORDS = set(line.strip() for line in f if line.strip())
 
 def cut_ws(t):
     return ' '.join(w for w in jieba.cut(t) if w.strip() and w not in STOP_WORDS)

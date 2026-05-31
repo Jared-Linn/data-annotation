@@ -15,10 +15,8 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 import joblib
 
 SEED = 42
-STOP_WORDS = set("""
-的 了 在 是 我 有 和 就 不 人 都 一 一个 上 也 很 到 说 要 去 你
-会 着 没有 看 好 自己 这 他 她 它 们 那 么 什么 怎么 因为 所以
-""".split())
+with open('data/stopwords.txt', encoding='utf-8') as f:
+    STOP_WORDS = set(line.strip() for line in f if line.strip())
 
 S3_KW = {
     '3.1': ['正在自杀','跳楼','上吊','割腕','服药自杀','在自杀'],

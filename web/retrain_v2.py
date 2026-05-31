@@ -14,27 +14,8 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 import joblib
 
 SEED = 42
-STOP_WORDS = set("""
-的 了 在 是 我 有 和 就 不 人 都 一 一个 上 也 很 到 说 要 去 你
-会 着 没有 看 好 自己 这 他 她 它 们 那 么 什么 怎么 因为 所以
-如果 但 是 但 可以 还 为 又 能 而 或 之 与 及 等 被 把 让 向
-从 对 将 用 以 比 按 照 跟 和 同 被 把 让 给 为 所 得 地 着
-过 了 呢 吗 啊 呀 吧 么 哦 嗯 哈 呵 嗨 喂 啦 嘛 哪 咋 喔 呗
-这 那 哪 谁 怎样 哪儿 那里 这里 那些 这些 什么 怎么 如何 为何
-个 只 些 点 样 种 回 次 遍 下 里 外 前 后 左 右 东 西 南 北
-已 已经 曾经 刚 刚刚 正 正在 将 将要 就 便 才 再 又 也 还
-很 非常 十分 太 最 极 更 越 稍 略 几 多么 尤其 甚至 几乎
-不 没 没有 未 别 勿 休 不要 不用 甭 看 稍 无须 未曾 尚未
-别 难道 究竟 到底 何必 何苦 何不 何况 况且 而且 并且 或者
-还是 但是 然而 不过 只是 可是 却 则 然 而 虽然 尽管 即使
-因为 所以 因此 于是 从而 以致 以至于 由于 既然 鉴于 为了
-如果 假如 假若 假使 倘若 要是 若 若非 不然 否则 要不 要不是
-只要 除非 无论 不论 不管 任凭 哪怕 纵使 就算 就是 即使
-除了 此外 另外 关于 对于 至于 针对 通过 根据 凭借 依照 按照
-遵照 本着 经过 沿着 顺着 朝着 往 向 朝 从 自 自从 打 由 到
-在 于 当 以 用 拿 把 将 被 叫 让 给 替 为 对 跟 同 比 与
-和 及 以及 并 并且 而 而且 或 或者 还是 要么 不只 不仅 不但
-""".split())
+with open('data/stopwords.txt', encoding='utf-8') as f:
+    STOP_WORDS = set(line.strip() for line in f if line.strip())
 
 def cut_ws(t):
     return ' '.join(w for w in jieba.cut(t) if w.strip() and w not in STOP_WORDS)
