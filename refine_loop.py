@@ -2,17 +2,17 @@
 """
 refine_loop.py — 两阶段自动修正循环
 
-阶段1: refine_loop.py --phase prepare --file student-01
+阶段1: refine_loop.py --phase prepare --file No-01
   → 训练模型 → 生成 review CSV → 生成 correction_tasks.json
 
 阶段2: (等子代理修正完成后)
-  refine_loop.py --phase apply --file student-01 --corrections data/student-01_corrections.json
+  refine_loop.py --phase apply --file No-01 --corrections data/No-01_corrections.json
   → 合并修正 → 加权重训 → 输出 refined JSON
 
 用法:
-  python3 refine_loop.py --phase prepare --file student-01
-  python3 refine_loop.py --phase apply --file student-01 --corrections data/student-01_corrections.json
-  python3 refine_loop.py --phase full --file student-01 --corrections ... --target 0.95
+  python3 refine_loop.py --phase prepare --file No-01
+  python3 refine_loop.py --phase apply --file No-01 --corrections data/No-01_corrections.json
+  python3 refine_loop.py --phase full --file No-01 --corrections ... --target 0.95
 """
 import json, re, os, sys, time, math, csv, argparse, random
 from pathlib import Path
@@ -24,7 +24,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
-DATA_DIR = Path("/home/osboxes/Desktop/data-annotation/data")
+DATA_DIR = Path("./data")
 SEED = 42
 
 # === 标签体系 ===
@@ -66,14 +66,14 @@ def heuristic_label(text):
 
 def load_student(student_id):
     """加载数据, 返回 (raw, texts, labels)"""
-    stem = f"student-{student_id}"
+    stem = f"No-{student_id}"
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     in_path = DATA_DIR / f"{stem}.json"
     if not in_path.exists():
         print(f"文件不存在: {in_path}")
         return None
 
-    with open(in_path) as f:
+    with open(in_path, encoding='utf-8') as f:
         raw = json.load(f)
     texts = [build_text(item) for item in raw]
     labels = []
@@ -132,7 +132,7 @@ def phase_prepare(student_id, n_samples=500, labels_file=None):
     print(f"{stem}: {n_total} 条")
 
     if labels_file:
-        with open(labels_file) as f:
+        with open(labels_file, encoding='utf-8') as f:
             labeled = json.load(f)
         labels = [item['labels']['label'] for item in labeled]
         print(f"使用已有标注结果: {labels_file} ({len(labels)} 条)")
@@ -220,7 +220,7 @@ def phase_apply(student_id, corrections_path, output_suffix='refined', weight=10
     corrections = {}
     corr_path = Path(corrections_path)
     if corr_path.exists():
-        with open(corr_path) as f:
+        with open(corr_path, encoding='utf-8') as f:
             items = json.load(f)
         for item in items:
             corrections[int(item['idx'])] = item['label']
@@ -289,7 +289,7 @@ def phase_apply(student_id, corrections_path, output_suffix='refined', weight=10
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--phase', choices=['prepare', 'apply', 'full'], required=True)
-    parser.add_argument('--file', required=True, help='文件编号, 如 student-01 或 01')
+    parser.add_argument('--file', required=True, help='文件编号, 如 No-01 或 01')
     parser.add_argument('--corrections', help='修正结果 JSON (apply/full 需要)')
     parser.add_argument('--n', type=int, default=500, help='每轮采样数')
     parser.add_argument('--target', type=float, default=0.95, help='目标准确率')
@@ -298,7 +298,7 @@ def main():
     parser.add_argument('--labels', help='已有标注 JSON (用于 prepare 阶段初始模型)')
     args = parser.parse_args()
 
-    student_id = args.file.replace('student-', '')
+    student_id = args.file.replace('No-', '')
 
     random.seed(SEED)
 
@@ -316,11 +316,11 @@ def main():
         # 但这里不适合全自动因为子代理需要手动触发
         task_file = phase_prepare(student_id, args.n)
         if task_file:
-            n_tasks = len(json.load(open(task_file)))
+            n_tasks = len(json.load(open(task_file, encoding='utf-8')))
             print(f"\n{'=' * 60}")
             print(f"需要你手动用 delegate_task 修正 {n_tasks} 条标签")
             print(f"修正文件: {task_file}")
-            print(f"然后运行: python3 refine_loop.py --phase apply --file {student_id} --corrections data/student-{student_id}_correction_results.json")
+            print(f"然后运行: python3 refine_loop.py --phase apply --file {student_id} --corrections data/No-{student_id}_correction_results.json")
 
 
 if __name__ == '__main__':

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 merge_corrections.py — 合并多个子代理的修正结果
-用法: python3 merge_corrections.py --output data/student-01_corrections.json data/corrections_*.json
+用法: python3 merge_corrections.py --output data/No-01_corrections.json data/corrections_*.json
 """
 import json, argparse
 

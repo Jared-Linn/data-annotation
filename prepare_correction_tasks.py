@@ -7,7 +7,7 @@ prepare_correction_tasks.py — 从 review CSV 生成修正任务文件
 import json, csv, argparse
 from pathlib import Path
 
-DATA_DIR = Path("/home/osboxes/Desktop/data-annotation/data")
+DATA_DIR = Path("./data")
 
 def main():
     parser = argparse.ArgumentParser()
