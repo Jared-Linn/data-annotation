@@ -2,14 +2,14 @@
 """
 auto_correct.py — 用 LLM (DeepSeek) 自动修正不确定样本的标签
 输入: review_500.csv (由 generate_review.py 生成)
-       student-XX.json (原始数据, 用于获取完整上下文)
+       No-XX.json (原始数据, 用于获取完整上下文)
 输出: review_500_out.csv (格式兼容 retrain.py)
 """
 import json, csv, os, sys, re, time, math
 from pathlib import Path
 from openai import OpenAI  # DeepSeek 兼容 OpenAI 协议
 
-DATA_DIR = Path("/home/osboxes/Desktop/data-annotation/data")
+DATA_DIR = Path("./data")
 
 # 完整的三级标签体系说明 (给 LLM 的 taxonomy)
 TAXONOMY = """

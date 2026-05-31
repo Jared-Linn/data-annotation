@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 解析人工/LLM审核结果 + 加权重训
-用法: python3 retrain.py --data data/student-01.json --corrections data/student-01_corrections.json --output data/student-01_refined.json
+用法: python3 retrain.py --data data/No-01.json --corrections data/No-01_corrections.json --output data/No-01_refined.json
 """
 import json, re, argparse
 from pathlib import Path

@@ -2,7 +2,7 @@
 """
 思路A: 传统NLP + 机器学习分类
 心理咨询对话三级标签 (S1/S2/S3) 自动标注
-批量处理 data/ 下所有 student-*.json (排除已标注的)
+批量处理 data/ 下所有 No-*.json (排除已标注的)
 """
 import json, re, random, sys, glob, os, time
 from pathlib import Path
@@ -13,7 +13,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
-DATA_DIR = Path("/home/osboxes/Desktop/data-annotation/data")
+DATA_DIR = Path("./data")
 SEED = 42
 np.random.seed(SEED)
 random.seed(SEED)
@@ -119,7 +119,7 @@ def process_one(in_path, out_path):
     print(f"{'=' * 60}")
 
     # 1. 加载
-    with open(in_path) as f:
+    with open(in_path, encoding='utf-8') as f:
         raw = json.load(f)
     n_total = len(raw)
     print(f"  总条目: {n_total}")
@@ -210,7 +210,7 @@ def process_one(in_path, out_path):
           f"S3={s3} ({s3 / nl * 100:.1f}%)")
 
     # 7. 写回原始顺序
-    with open(in_path) as f:
+    with open(in_path, encoding='utf-8') as f:
         original = json.load(f)
 
     id_to_label = {}
@@ -241,13 +241,13 @@ def process_one(in_path, out_path):
 # 主流程: 批量处理
 # ============================================================
 def main():
-    # 找到所有 student-*.json (排除 _labeled 的)
-    pattern = str(DATA_DIR / "student-*.json")
+    # 找到所有 No-*.json (排除 _labeled 的)
+    pattern = str(DATA_DIR / "No-*.json")
     all_files = sorted(glob.glob(pattern))
     to_process = [p for p in all_files if '_labeled' not in p]
 
     if not to_process:
-        print("未找到需要处理的 student-*.json 文件")
+        print("未找到需要处理的 No-*.json 文件")
         sys.exit(1)
 
     print(f"找到 {len(to_process)} 个文件待处理:")
@@ -261,7 +261,7 @@ def main():
 
     for in_path in to_process:
         in_path = Path(in_path)
-        stem = in_path.stem  # e.g. student-01
+        stem = in_path.stem  # e.g. No-01
         out_path = DATA_DIR / f"{stem}_labeled_a2.json"
 
         # 跳过已存在的 (可选)

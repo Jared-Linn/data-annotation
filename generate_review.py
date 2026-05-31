@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 生成审核 CSV: 找出模型最不确定的样本供人工/LLM修正标签
-用法: python3 generate_review.py --data data/student-01.json --n 500
+用法: python3 generate_review.py --data data/No-01.json --n 500
 """
 import json, csv, random, re, argparse
 from pathlib import Path
