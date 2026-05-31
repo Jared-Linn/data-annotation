@@ -17,4 +17,10 @@ temp/
 
 # Claude
 .claude/
-~.docx
+
+# Word 临时文件
+~$*.docx
+
+# 原始数据（大文件不纳入版本控制）
+data/No*.json
+data/stopwords.txt
