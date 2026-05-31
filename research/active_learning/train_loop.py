@@ -56,7 +56,7 @@ class ActiveLearningLoop:
         loop.summary()                         # 查看进展
     """
 
-    def __init__(self, weight=5.0, strategy='least_confidence'):
+    def __init__(self, weight=2.0, strategy='least_confidence'):
         self.weight = weight
         self.strategy = strategy
 
@@ -140,17 +140,16 @@ class ActiveLearningLoop:
 
         return acc
 
-    def run_round(self, n_select=200, conf_threshold=0.7, auto_label=True):
+    def run_round(self, n_select=300, conf_threshold=0.0, auto_label=True):
         """
         执行一轮主动学习
 
-        参数:
-            n_select: 本次选择样本数
-            conf_threshold: 自动标注置信阈值
-            auto_label: True=自动伪标签, False=打印review任务
+        策略：按类选取 top-K 样本，稀有类优先
+        因为 class_weight='balanced' 使概率平滑，不用绝对阈值
 
-        返回:
-            round_info: dict
+        参数:
+            n_select: 每轮选择样本数
+            auto_label: True=自动伪标签
         """
         t0 = time.time()
         print(f"\n--- 主动学习第{len(self.history)+1}轮 (strategy={self.strategy}) ---")
@@ -164,35 +163,50 @@ class ActiveLearningLoop:
         preds = self.clf.predict(X_pool)
         probs = self.clf.predict_proba(X_pool)
         max_probs = probs.max(axis=1)
+        classes = self.clf.classes_
 
-        # 3. 选择最不确定的样本
-        selected_idx, scores = select_samples(probs, min(n_select, len(self.pool_texts)), self.strategy)
+        # 3. 按类收集候选
+        class_candidates = {c: [] for c in classes}
+        for i in range(len(self.pool_texts)):
+            class_candidates[preds[i]].append((i, max_probs[i]))
 
-        # 4. 处理选中样本
+        # 按类选取 top-K：稀有类多选，常见类限选
+        train_class_counts = Counter(self.train_labels)
+        # 按训练集中数量升序排列（稀有类优先）
+        rare_first = sorted(classes, key=lambda c: train_class_counts.get(c, 0))
+
+        # 每类配额：稀有类最多30，常见类最多15
+        class_quota = {}
+        for c in classes:
+            n_train = train_class_counts.get(c, 0)
+            class_quota[c] = 30 if n_train < 50 else 15
+
+        selected_indices = set()
         n_pseudo = 0
-        n_review = 0
-        for idx in selected_idx:
-            item = self.pool_raw[idx]
-            text = self.pool_texts[idx]
-            pred = preds[idx]
-            conf = max_probs[idx]
 
-            if auto_label and conf >= conf_threshold:
-                # 自动添加伪标签
-                self.train_texts.append(text)
-                self.train_labels.append(pred)
-                self.weights.append(self.weight)
-                self.source.append('pseudo')
-                n_pseudo += 1
-            else:
-                # 需要人工审核
-                n_review += 1
+        # 按稀有优先顺序，每类取 top-K
+        for c in rare_first:
+            if len(selected_indices) >= n_select:
+                break
+            candidates = sorted(class_candidates.get(c, []), key=lambda x: -x[1])
+            quota = class_quota[c]
+            for idx, conf in candidates[:quota]:
+                if len(selected_indices) >= n_select:
+                    break
+                if idx not in selected_indices:
+                    selected_indices.add(idx)
+                    if auto_label:
+                        self.train_texts.append(self.pool_texts[idx])
+                        self.train_labels.append(c)
+                        self.weights.append(self.weight)
+                        self.source.append('pseudo')
+                        n_pseudo += 1
 
-        # 5. 从池中移除选中样本
-        keep = list(range(len(self.pool_raw)))
-        for idx in sorted(selected_idx, reverse=True):
-            keep.pop(idx)
+        selected_idx = sorted(selected_indices)
+        n_selected = len(selected_idx)
 
+        # 4. 从池中移除选中样本
+        keep = [i for i in range(len(self.pool_raw)) if i not in selected_indices]
         self.pool_raw = [self.pool_raw[i] for i in keep]
         self.pool_texts = [self.pool_texts[i] for i in keep]
 
@@ -202,22 +216,23 @@ class ActiveLearningLoop:
             'train_size': len(self.train_texts),
             'pool_size': len(self.pool_raw),
             'accuracy': acc,
-            'n_selected': len(selected_idx),
+            'n_selected': n_selected,
             'n_pseudo': n_pseudo,
-            'n_review': n_review,
             'elapsed': f'{elapsed:.1f}s',
         }
 
         # 评估伪标签质量
         if n_pseudo > 0:
-            pseudo_labels = [self.train_labels[-n_pseudo:]]
-            pseudo_dist = Counter(pseudo_labels[0])
-            round_info['pseudo_dist'] = dict(pseudo_dist.most_common(5))
+            pseudo_labels = self.train_labels[-n_pseudo:]
+            pseudo_dist = Counter(pseudo_labels)
+            round_info['pseudo_dist'] = dict(pseudo_dist.most_common(10))
 
         self.history.append(round_info)
 
-        print(f"  选中: {len(selected_idx)}条 (伪标签{n_pseudo}, 需审核{n_review})")
+        print(f"  选中: {n_selected}条 (全部自动标注)")
         print(f"  池剩余: {len(self.pool_raw)}条 | 耗时: {elapsed:.1f}s")
+        if n_pseudo > 0:
+            print(f"  伪标签分布 (top5): {dict(Counter(self.train_labels[-n_pseudo:]).most_common(5))}")
         return round_info
 
     def summary(self):
