@@ -16,6 +16,9 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']
 plt.rcParams['axes.unicode_minus'] = False
 
+CHART_DIR = Path('research/data_analysis/output')
+CHART_DIR.mkdir(parents=True, exist_ok=True)
+
 DATA = Path('data')
 OUT = Path('data/人工标注')
 
@@ -87,7 +90,7 @@ def analyze_confusion():
         print(f"  {lbl:>6}" + ''.join(f'{cm_s[i,j]:6d}' for j in range(3)))
 
     plot_confusion_heatmap(cm_s, ['S1','S2','S3'], 'S层级混淆矩阵',
-                           str(OUT / 'confusion_S_level.png'))
+                           str(CHART_DIR / 'confusion_S_level.png'))
 
     # 各类目混淆矩阵（只显示有足够测试样本的类）
     v2 = TfidfVectorizer(ngram_range=(1,1), max_features=10000, sublinear_tf=True)
@@ -113,7 +116,7 @@ def analyze_confusion():
     cm_sub = confusion_matrix(lbls, all_pred, labels=top_classes)
     top_names = [f'{l}' for l in top_classes]
     plot_confusion_heatmap(cm_sub, top_names, '子类混淆矩阵 (Top20)',
-                           str(OUT / 'confusion_subclass.png'))
+                           str(CHART_DIR / 'confusion_subclass.png'))
 
 
 if __name__ == '__main__':

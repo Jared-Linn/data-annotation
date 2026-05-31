@@ -11,6 +11,9 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']
 plt.rcParams['axes.unicode_minus'] = False
 
+CHART_DIR = Path('research/data_analysis/output')
+CHART_DIR.mkdir(parents=True, exist_ok=True)
+
 DATA = Path('data')
 OUT = Path('data/人工标注')
 
@@ -53,7 +56,7 @@ def plot_all_distributions():
     ax2.set_title('模型最终分布 (8366条)', fontsize=12, fontweight='bold')
 
     plt.tight_layout()
-    plt.savefig(OUT / 'viz_S_distribution.png', dpi=200, bbox_inches='tight')
+    plt.savefig(CHART_DIR / 'viz_S_distribution.png', dpi=200, bbox_inches='tight')
     plt.close()
     print("  viz_S_distribution.png 已保存")
 
@@ -76,7 +79,7 @@ def plot_all_distributions():
         ax.text(bar.get_width() + 10, bar.get_y() + bar.get_height()/2,
                 str(val), va='center', fontsize=9)
     plt.tight_layout()
-    plt.savefig(OUT / 'viz_class_distribution.png', dpi=200, bbox_inches='tight')
+    plt.savefig(CHART_DIR / 'viz_class_distribution.png', dpi=200, bbox_inches='tight')
     plt.close()
     print("  viz_class_distribution.png 已保存")
 
@@ -100,7 +103,7 @@ def plot_all_distributions():
     ax.set_title('S1/S2/S3 对话轮数分布对比', fontsize=13, fontweight='bold')
     ax.legend(fontsize=10)
     plt.tight_layout()
-    plt.savefig(OUT / 'viz_dialog_length.png', dpi=200, bbox_inches='tight')
+    plt.savefig(CHART_DIR / 'viz_dialog_length.png', dpi=200, bbox_inches='tight')
     plt.close()
     print("  viz_dialog_length.png 已保存")
 

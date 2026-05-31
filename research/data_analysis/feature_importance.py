@@ -15,6 +15,9 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']
 plt.rcParams['axes.unicode_minus'] = False
 
+CHART_DIR = Path('research/data_analysis/output')
+CHART_DIR.mkdir(parents=True, exist_ok=True)
+
 DATA = Path('data')
 OUT = Path('data/人工标注')
 
@@ -114,7 +117,7 @@ def analyze_feature_importance(target_labels=None):
         print()
 
         # 画图
-        save_path = OUT / f'features_{lbl}.png'
+        save_path = CHART_DIR / f'features_{lbl}.png'
         plot_top_features(coef, feature_names, f'{lbl} {name}', 20, save_path)
 
 
