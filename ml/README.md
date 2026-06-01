@@ -27,12 +27,20 @@
 ## 运行方式
 
 ```bash
-# 最终版全量预测
+# 最终版全量预测（输出到 ml/output/）
 python -m ml.final_pipeline
 
 # 两阶段训练
 python -m ml.two_stage
 ```
+
+## 输出
+
+| 路径 | 内容 |
+|------|------|
+| `ml/output/*_最终版.json` | 最终标注结果 |
+| `ml/output/*_带标签.json` | 含 dialog tags |
+| `ml/models/` | 训练好的模型文件 |
 
 ## 优化工具
 

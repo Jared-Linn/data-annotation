@@ -20,7 +20,7 @@ CHART_DIR = Path('analysis/output')
 CHART_DIR.mkdir(parents=True, exist_ok=True)
 
 DATA = Path('data')
-OUT = Path('data/人工标注')
+OUT = Path('ml/output')
 
 with open(DATA / 'stopwords.txt', encoding='utf-8') as f:
     STOP_WORDS = set(line.strip() for line in f if line.strip())
@@ -67,7 +67,7 @@ def analyze_confusion():
     print("=" * 60)
 
     # 加载训练数据
-    with open(OUT / 'No-01_待标注_3000_已标注.json', encoding='utf-8') as f:
+    with open('data/人工标注/No-01_待标注_3000_已标注.json', encoding='utf-8') as f:
         seed = json.load(f)
     txts = [bld(it) for it in seed]
     lbls = [it['labels']['label'] for it in seed]

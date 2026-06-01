@@ -7,7 +7,7 @@ import numpy as np
 import jieba
 
 DATA = Path('data')
-OUT = Path('data/人工标注')
+OUT = Path('ml/output')
 
 with open(DATA / 'stopwords.txt', encoding='utf-8') as f:
     STOP_WORDS = set(line.strip() for line in f if line.strip())

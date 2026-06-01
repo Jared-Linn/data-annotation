@@ -15,7 +15,7 @@ CHART_DIR = Path('analysis/output')
 CHART_DIR.mkdir(parents=True, exist_ok=True)
 
 DATA = Path('data')
-OUT = Path('data/人工标注')
+OUT = Path('ml/output')
 
 LABEL_NAMES_S = {'1':'S1 日常困扰', '2':'S2 中度障碍', '3':'S3 紧急危机'}
 LABEL_NAMES = {
@@ -31,9 +31,9 @@ LABEL_NAMES = {
 def plot_all_distributions():
     """生成所有分布图"""
     # 加载数据
-    with open(OUT / 'No-01_待标注_3000_已标注.json', encoding='utf-8') as f:
+    with open(Path('data/人工标注/No-01_待标注_3000_已标注.json'), encoding='utf-8') as f:
         human = json.load(f)
-    with open(OUT / 'No-01_最终版.json', encoding='utf-8') as f:
+    with open(Path('ml/output/No-01_最终版.json'), encoding='utf-8') as f:
         final = json.load(f)
 
     human_labels = [it['labels']['label'] for it in human]

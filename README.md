@@ -15,13 +15,16 @@
 ```
 data-annotation/
 ├── ml/                 传统机器学习流水线
+│   ├── models/          训练好的模型
+│   └── output/          ML标注结果
 ├── nn/                 神经网络实验
 ├── analysis/           数据洞察 & 图表分析
 ├── active_learning/    主动学习扩增
 ├── web/                Web标注工具
-├── tools/              辅助脚本
-└── data/               原始数据 & 标注结果
-```
+├── docs/               文档 & 实验报告
+├── data/               原始数据
+│   └── 人工标注/       人工标注结果
+└── README.md
 
 ### ml/ — 传统机器学习（核心流水线）
 jieba + TF-IDF + 两阶段分类（LR/LinearSVC），含完整标注流程：
