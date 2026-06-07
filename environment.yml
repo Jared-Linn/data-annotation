@@ -1,0 +1,20 @@
+name: data-annotation
+channels:
+  - defaults
+  - pytorch
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - torch>=2.0.0
+    - torchvision
+    - torchaudio
+    - transformers>=4.30.0
+    - jieba
+    - gensim
+    - scikit-learn
+    - joblib
+    - numpy
+    - scipy
+    - matplotlib
+    - tqdm

@@ -2,86 +2,142 @@
 
 基于 NLP 方法对心理咨询对话进行 **S1 / S2 / S3** 三级分类标注，覆盖 31 个子类。
 
-| 层级 | 含义 | 子类数 |
-|------|------|--------|
-| **S1** | 日常困扰（轻度） | 17 |
-| **S2** | 心理障碍（中度） | 9 |
-| **S3** | 紧急危机（重度） | 5 |
+---
+
+## 🚀 快速开始
+
+```bash
+# 1. 创建环境（conda 或 pip）
+conda env create -f environment.yml
+conda activate data-annotation
+
+# 或用 pip
+pip install -r requirements.txt
+
+# 2. 生成伪标签（需要 data/ 下有 No*.json 原始数据）
+python -m nn.pseudo_label
+
+# 3. 跑基线实验
+python -m nn.char_cnn --subset 50000
+```
 
 ---
 
-## 项目方向
+## 📁 项目结构
 
 ```
 data-annotation/
-├── ml/                 传统机器学习流水线
-│   ├── models/          训练好的模型
-│   └── output/          ML标注结果
-├── nn/                 神经网络实验
-├── analysis/           数据洞察 & 图表分析
-├── active_learning/    主动学习扩增
-├── web/                Web标注工具
-├── docs/               文档 & 实验报告
-├── data/               原始数据
-│   └── 人工标注/       人工标注结果
+├── nn/                    神经网络实验 ★ 当前工作重点
+│   ├── config.py           共享配置（路径、字符表、工具函数）
+│   ├── pseudo_label.py     关键词匹配 → 初始伪标签
+│   ├── char_cnn.py         CharCNN + MLP + LR 基线对比
+│   ├── char_cnn_deep.py    残差CharCNN 深度改进版
+│   ├── self_train.py       Self-Training 迭代改善标签
+│   ├── generate_labels.py  用模型生成全量精炼标签
+│   ├── bert_finetune.py    BERT 微调
+│   ├── bert_cls.py         BERT 实验（旧版）
+│   ├── mlp_tfidf.py        MLP + TF-IDF 实验
+│   ├── word2vec_cls.py     Word2Vec + TextCNN
+│   ├── fusion.py           CharCNN + TF-IDF 特征融合
+│   ├── train_save.py       训练并保存模型
+│   ├── hybrid_pipeline.py  CharCNN + ML 混合流水线
+│   ├── README.md           模块说明
+│   ├── 训练流程.md           完整实验记录
+│   ├── models/             训练好的模型权重（.pt）
+│   └── bert-model/         本地 BERT 文件
+│
+├── ml/                    传统机器学习流水线（jieba + TF-IDF）
+├── analysis/              数据洞察 & 可视化
+├── active_learning/       主动学习扩增
+├── web/                   Web 标注工具
+├── docs/                  文档 & 实验报告
+│
+├── data/                  数据（.gitignore 排除大文件）
+│   ├── No*.json            原始对话数据
+│   ├── stopwords.txt       停用词表
+│   ├── 人工标注/            标注结果（自动生成）
+│   └── README.md           数据格式说明
+│
+├── requirements.txt        pip 依赖
+├── environment.yml         conda 环境配置
+├── .gitignore
 └── README.md
-
-### ml/ — 传统机器学习（核心流水线）
-jieba + TF-IDF + 两阶段分类（LR/LinearSVC），含完整标注流程：
-预处理 → 训练 → 预测 → 评估 → 人工修正 → 输出
-
-**Stage1 S1/S2/S3: 81.67% | Stage2 子类: 50~66% | 类覆盖: 31/31**
-
-→ [ml/README.md](ml/README.md)
-
-### nn/ — 神经网络实验
-PyTorch 实现多种神经网络：
-CharCNN（字符级卷积）、Deep CharCNN（残差网络）、MLP、Word2Vec、BERT 微调、Self-Training
-
-**最佳模型: CharCNN Deep v3 — Stage1 75.67% | Stage2 69.41% | 参数量 2.1M**
-
-| 模型 | Stage1 准确率 | 训练速度 |
-|------|-------------|---------|
-| LR + TF-IDF (基线) | 40% | 10s |
-| CharCNN Original | 75.0% ✅ | 2.5min |
-| **CharCNN Deep v3 (残差)** | **75.7%** ✅ | 20min |
-| Self-Training (3轮) | 标签收敛 ✅ | ~4h |
-| BERT | 待优化 | ~2h/epoch |
-
-→ [训练流程文档](nn/训练流程.md) — 完整实验记录和复现步骤
-→ [nn/README.md](nn/README.md) — 模块说明
-
-### analysis/ — 数据分析
-各类目关键词分析、混淆矩阵热力图、模型特征重要性、分布可视化
-
-### active_learning/ — 主动学习
-4 种采样策略，按类均衡扩增，稀有类优先
-
-### web/ — Web 标注工具
-浏览器打开即可用的标签编辑器，支持在线修改和下载
+```
 
 ---
 
-## 标注结果
+## 🔬 两阶段分类架构
 
-| 文件 | 类覆盖 | S3子类 | S1 | S2 | S3 |
-|------|--------|--------|----|----|----|
-| No-01 | **31**/31 | **5**/5 | 74.1% | 15.3% | 10.6% |
-| No-02 | **31**/31 | **5**/5 | 73.0% | 15.1% | 11.8% |
-| No-03 | **31**/31 | **5**/5 | 71.6% | 16.1% | 12.3% |
+```
+输入对话
+    │
+    ▼
+Stage 1: 粗分类
+────────────────
+  S1 日常困扰 (43%)  ──→  Stage 2: 17个子类（学业/职场/家庭...）
+  S2 心理障碍 (50%)  ──→  Stage 2:  9个子类（抑郁/焦虑/双相...）
+  S3 紧急危机 ( 7%)  ──→  Stage 2:  5个子类（自杀/自残/伤人...）
+```
 
 ---
 
-## 标签体系
+## 📊 模型表现
 
+| 模型 | Stage1 (S级) | Stage2 (S1子类) | 参数量 | 速度 |
+|------|-------------|----------------|--------|------|
+| LR + TF-IDF (基线) | 40.3% | 22.7% | — | 10s |
+| **CharCNN** | **75.0%** ✅ | **69.4%** | **142K** | **2.5min** |
+| **CharCNN Deep v3** (残差) | **75.7%** ✅ | — | **2.1M** | **20min** |
+| BERT (fp16) | 40.5% ❌ | — | 102M | 80min |
+
+> ℹ️ 所有准确率为 5 万条测试集结果。详细实验记录见 [`nn/训练流程.md`](nn/训练流程.md)。
+
+---
+
+## 🔧 开发指南
+
+### 我想...
+
+#### 从头跑一遍
+```bash
+python -m nn.pseudo_label                          # 1. 生成伪标签
+python -m nn.char_cnn --subset 50000                # 2. 基线
+python -m nn.char_cnn_deep --subset 50000           # 3. Deep v3
+python -m nn.self_train --subset 50000 --rounds 3   # 4. Self-Training
+python -m nn.generate_labels                        # 5. 精炼全量标签
+```
+
+#### 只用最快的方式推理
+就用 `nn/models/char_cnn_deep_best.pt`（Deep v3，75.7%），参考 `nn/generate_labels.py` 加载预测。
+
+#### 改进模型
+- **改进伪标签** → 编辑 `nn/pseudo_label.py` 扩大关键词库
+- **改进 CharCNN** → 编辑 `nn/char_cnn_deep.py` 加层/调参
+- **跑 BERT** → `python -m nn.bert_finetune`（需要 GPU 4GB+）
+
+#### 理解数据
+→ 见 [`data/README.md`](data/README.md)
+
+#### 看完整实验报告
+→ 见 [`nn/训练流程.md`](nn/训练流程.md)
+
+---
+
+## 🏷️ 标签体系
+
+| 层级 | 子类 |
+|------|------|
 | S3 紧急危机 | 3.1自杀 3.2自杀计划 3.3自残 3.4伤人 3.5报复 |
 | S2 中度障碍 | 2.1抑郁 2.2焦虑 2.3双相 2.4PTSD 2.5恐慌 2.6饮食障碍 2.7强迫 2.8成瘾 2.9其他 |
 | S1 日常困扰 | 1.1学业 1.2职场 1.3家庭 1.4消遣 1.5离世 1.6失眠 1.7压力 1.8社交 1.9亲密关系 1.10离异 1.11分手 1.12自我探索 1.13低自尊 1.14青春期 1.15性认知 1.16亲子 1.17其他 |
 
 ---
 
-## 实验报告
+## 📝 环境
 
-详细过程见 [实验报告.md](实验报告.md)
+```bash
+conda env create -f environment.yml
+conda activate data-annotation
+```
 
-课程项目封面：`course-project-cover-填写版.docx`
+核心依赖：PyTorch (CUDA) + transformers + scikit-learn + jieba + gensim
