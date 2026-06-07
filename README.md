@@ -36,11 +36,20 @@ jieba + TF-IDF + 两阶段分类（LR/LinearSVC），含完整标注流程：
 
 ### nn/ — 神经网络实验
 PyTorch 实现多种神经网络：
-CharCNN（字符级卷积）、MLP、Word2Vec、BERT 微调
+CharCNN（字符级卷积）、Deep CharCNN（残差网络）、MLP、Word2Vec、BERT 微调、Self-Training
 
-**CharCNN Stage1 达 83.33%，超越 LR 基线**
+**最佳模型: CharCNN Deep v3 — Stage1 75.67% | Stage2 69.41% | 参数量 2.1M**
 
-→ [nn/README.md](nn/README.md)
+| 模型 | Stage1 准确率 | 训练速度 |
+|------|-------------|---------|
+| LR + TF-IDF (基线) | 40% | 10s |
+| CharCNN Original | 75.0% ✅ | 2.5min |
+| **CharCNN Deep v3 (残差)** | **75.7%** ✅ | 20min |
+| Self-Training (3轮) | 标签收敛 ✅ | ~4h |
+| BERT | 待优化 | ~2h/epoch |
+
+→ [训练流程文档](nn/训练流程.md) — 完整实验记录和复现步骤
+→ [nn/README.md](nn/README.md) — 模块说明
 
 ### analysis/ — 数据分析
 各类目关键词分析、混淆矩阵热力图、模型特征重要性、分布可视化

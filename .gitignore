@@ -24,3 +24,11 @@ temp/
 # 原始数据（大文件不纳入版本控制）
 data/No*.json
 data/stopwords.txt
+data/student-01.json
+
+# 标注数据（自动生成，体积巨大）
+data/人工标注/*.json
+
+# 模型权重（可重新训练生成）
+nn/models/*.pt
+nn/bert-model/
