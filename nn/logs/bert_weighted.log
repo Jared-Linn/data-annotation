@@ -1,0 +1,68 @@
+============================================================
+BERT 微调 — 心理咨询对话分类
+设备: cuda (显存: 11.6GB)
+============================================================
+
+▶ 加载数据: data/人工标注/bert_training_data.json
+  总计: 250972 条
+    S1日常困扰: 107037条 (42.6%)
+    S2心理障碍: 131307条 (52.3%)
+    S3紧急危机: 12628条 (5.0%)
+
+  划分: 训练242972 / 验证3000 / 测试5000
+
+▶ 加载 BERT tokenizer (本地)...
+  BERT 词表大小: 21128 (0.1s)
+  loading pre-tokenized data...
+  loaded 242972 items (0.4s)
+  loading pre-tokenized data...
+  loaded 3000 items (0.3s)
+  loading pre-tokenized data...
+  loaded 5000 items (0.4s)
+
+▶ 加载 BERT 模型 (本地)...
+Some weights of BertForSequenceClassification were not initialized from the model checkpoint at nn/bert-model and are newly initialized: ['classifier.bias', 'classifier.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+  BERT 参数: 102,269,955 (1.1s)
+  模型显存: 399MB / 总 11.6GB
+  类别权重: S1=0.78 S2=0.64 S3=6.62
+
+▶ 开始训练 (3 epochs)...
+  batch=32, 梯度累积=1, 等效batch=32
+  总步数: 22779, 预热: 2277
+  ✓ 保存最佳模型 (acc=0.7590)
+  Epoch 1/3 | train_loss=0.5686 val_loss=0.8903 val_acc=0.7590 | 580s
+  ✓ 保存最佳模型 (acc=0.7663)
+  Epoch 2/3 | train_loss=0.4994 val_loss=0.8123 val_acc=0.7663 | 578s
+  Epoch 3/3 | train_loss=0.4517 val_loss=0.8095 val_acc=0.7660 | 577s
+
+============================================================
+📊 BERT 测试结果
+============================================================
+  测试准确率: 0.7662 (76.62%)
+  总训练时间: 1743s
+
+  分类报告:
+              precision    recall  f1-score   support
+
+      S1日常困扰       0.75      0.76      0.75      2132
+      S2心理障碍       0.78      0.80      0.79      2616
+      S3紧急危机       0.73      0.56      0.63       252
+
+    accuracy                           0.77      5000
+   macro avg       0.76      0.70      0.72      5000
+weighted avg       0.77      0.77      0.77      5000
+
+
+============================================================
+模型对比 (S1/S2/S3)
+============================================================
+  模型                        准确率       
+  -----------------------------------
+  CharCNN (Original 250K)   ~0.6833   
+  CharCNN (Deep v3 50K)     ~0.7567   
+  BERT (refined labels)     0.7662    
+
+  ✅ BERT 超越 CharCNN!
+
+  模型已保存: nn/models/bert_best.pt
