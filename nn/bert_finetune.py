@@ -31,7 +31,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 
 from transformers import (
-    BertTokenizer,
+    AutoTokenizer,
     BertForSequenceClassification,
     get_linear_schedule_with_warmup,
 )
@@ -240,7 +240,7 @@ def main():
     # ── 3.3 加载 BERT tokenizer（本地） ──
     print(f"\n▶ 加载 BERT tokenizer (本地)...")
     t0 = time.time()
-    tokenizer = BertTokenizer.from_pretrained(str(BERT_LOCAL), local_files_only=True)
+    tokenizer = AutoTokenizer.from_pretrained(str(BERT_LOCAL), local_files_only=True)
     print(f"  BERT 词表大小: {len(tokenizer)} ({time.time()-t0:.1f}s)")
 
     # ── 3.4 创建 DataLoader ──
